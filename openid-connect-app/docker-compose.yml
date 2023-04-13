@@ -1,0 +1,87 @@
+services:
+  oidc:
+    image: node:16-alpine
+    command: yarn start:oidc
+    working_dir: /app
+    environment:
+      - PORT=80
+      - OIDC_ISSUER=$OIDC_ISSUER
+      - MONGODB_URI=$MONGODB_URI
+    ports:
+      - "3000:80"
+    volumes:
+      - .:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  api:
+    image: node:16-alpine
+    command: yarn start:api
+    working_dir: /app
+    environment:
+      - PORT=80
+      - OIDC_ISSUER=$OIDC_ISSUER
+      - CLIENT_ID=api
+      - CLIENT_SECRET=night-wolf
+    ports:
+      - "3006:80"
+    volumes:
+      - .:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  app:
+    image: node:16-alpine
+    command: yarn start:app
+    working_dir: /app
+    environment:
+      - PORT=80
+      - PUBLIC_OIDC_ISSUER=http://localhost:3000
+      - PUBLIC_APP_URL=http://localhost:3005
+      - PUBLIC_API_URL=http://localhost:3006
+      - CLIENT_ID=app
+      - CLIENT_SECRET=scorpion
+    ports:
+      - "3005:80"
+    volumes:
+      - .:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  mongo:
+    image: mongo:4.4.7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: test $$(mongo --quiet --eval "db.serverStatus().ok") -eq 1
+      interval: 10s
+      start_period: 30s
+
+  postgresql:
+    image: docker.io/bitnami/postgresql:latest
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - POSTGRESQL_USERNAME=bn_keycloak
+      - POSTGRESQL_DATABASE=bitnami_keycloak
+    volumes:
+      - "postgresql_data:/bitnami/postgresql"
+
+  keycloak:
+    image: docker.io/bitnami/keycloak:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - KEYCLOAK_CREATE_ADMIN_USER=true
+      - KEYCLOAK_LOGLEVEL=DEBUG
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+    depends_on:
+      - postgresql
+    volumes:
+      - "./mynewtheme:/opt/bitnami/keycloak/themes/mynewtheme"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  mongo-data: {}
+  postgresql_data:
+    driver: local
